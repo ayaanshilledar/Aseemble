@@ -19,3 +19,10 @@ export const getRoomSchema = z.object({
         id: z.string().uuid(),
     }),
 });
+
+export const joinRoomSchema = z.object({
+    body: z.object({
+        roomId: z.string(),
+        userId: z.string(),
+    }),
+});
