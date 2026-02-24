@@ -9,7 +9,7 @@ import roomRoutes from "./modules/room/room.route";
 import { GameRoom } from "./realtime/rooms/GameRoom";
 import { errorMiddleware } from "./middleware/error.middleware";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const app = express();
 app.use(cors());

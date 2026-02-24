@@ -12,7 +12,9 @@ export const validate = (schema: ZodObject<any>) => {
 
             // Update req values with parsed values (e.g., coerced numbers)
             req.body = parsed.body;
-
+            req.query = parsed.query as any;
+            req.params = parsed.params as any;
+ // latrer provide better type not any 
             return next();
         } catch (error) {
             return next(error);

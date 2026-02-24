@@ -11,129 +11,176 @@ export class GameRoom extends Room<{ state: GameState }> {
   private dbRoomId!: string;
 
   async onCreate(options: any) {
-    this.dbRoomId = options.roomId;
+    try {
+      this.dbRoomId = options.roomId;
+      if (!this.dbRoomId) {
+        throw new Error("No roomId provided");
+      }
 
-    const room = await prisma.room.findUnique({
-      where: { id: this.dbRoomId }
-    });
+      const room = await prisma.room.findUnique({
+        where: { id: this.dbRoomId }
+      });
 
-    if (!room || !room.isActive) {
-      throw new Error("Room not found or inactive");
+      if (!room || !room.isActive) {
+        throw new Error("Room not found or inactive");
+      }
+
+      this.setState(new GameState());
+
+      // Load existing objects from DB
+      const objects = await prisma.roomObject.findMany({
+        where: { roomId: this.dbRoomId }
+      });
+
+      objects.forEach((obj) => {
+        const stateObj = new RoomObjectState();
+        stateObj.id = obj.id;
+        stateObj.objectType = obj.objectType;
+        stateObj.internalId = obj.internalId;
+
+        this.state.objects.set(obj.id, stateObj);
+      });
+
+      this.registerMessageHandlers();
+    } catch (error) {
+      console.error("[Room.onCreate]", error);
+      throw error; // Colyseus will handle this and reject room creation
     }
+  }
 
-    this.setState(new GameState());
-
-    // Load existing objects from DB
-    const objects = await prisma.roomObject.findMany({
-      where: { roomId: this.dbRoomId }
-    });
-
-    objects.forEach((obj) => {
-      const stateObj = new RoomObjectState();
-      stateObj.id = obj.id;
-      stateObj.objectType = obj.objectType;
-      stateObj.internalId = obj.internalId;
-
-      this.state.objects.set(obj.id, stateObj);
-    });
-
+  private registerMessageHandlers() {
     // Movement
     this.onMessage("move", (client, data: { x: number; y: number }) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player) return;
+      try {
+        if (typeof data.x !== "number" || typeof data.y !== "number") return;
 
-      player.x = data.x;
-      player.y = data.y;
+        const player = this.state.players.get(client.sessionId);
+        if (!player) return;
+
+        player.x = data.x;
+        player.y = data.y;
+      } catch (error) {
+        console.error("[Room.onMessage:move]", error);
+      }
     });
 
     // Chat
     this.onMessage("chat", async (client, content: string) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player) return;
+      try {
+        if (!content || typeof content !== "string" || content.trim().length === 0) return;
 
-      await prisma.chatMessage.create({
-        data: {
-          roomId: this.dbRoomId,
-          userId: player.id,
-          content
+        const player = this.state.players.get(client.sessionId);
+        if (!player) return;
+
+        await prisma.chatMessage.create({
+          data: {
+            roomId: this.dbRoomId,
+            userId: player.id,
+            content: content.substring(0, 500)
+          }
+        });
+
+        const message = new Message();
+        message.userId = player.id;
+        message.content = content.substring(0, 500);
+
+        this.state.messages.push(message);
+
+       
+        if (this.state.messages.length > 50) {
+          this.state.messages.shift();
         }
-      });
-
-      const message = new Message();
-      message.userId = player.id;
-      message.content = content;
-
-      this.state.messages.push(message);
+      } catch (error) {
+        console.error("[Room.onMessage:chat]", error);
+      }
     });
 
     // Add Object (owner/admin only)
     this.onMessage("addObject", async (client, data: any) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player) return;
+      try {
+        const player = this.state.players.get(client.sessionId);
+        if (!player) return;
 
-      if (player.role !== "owner" && player.role !== "admin") return;
-
-      const obj = await prisma.roomObject.create({
-        data: {
-          roomId: this.dbRoomId,
-          objectType: data.objectType,
-          internalId: data.internalId
+        if (player.role !== "owner" && player.role !== "admin") {
+          client.send("error", { message: "Unauthorized to add objects" });
+          return;
         }
-      });
 
-      const stateObj = new RoomObjectState();
-      stateObj.id = obj.id;
-      stateObj.objectType = obj.objectType;
-      stateObj.internalId = obj.internalId;
+        if (!data.objectType || !data.internalId) return;
 
-      this.state.objects.set(obj.id, stateObj);
+        const obj = await prisma.roomObject.create({
+          data: {
+            roomId: this.dbRoomId,
+            objectType: data.objectType,
+            internalId: data.internalId
+          }
+        });
+
+        const stateObj = new RoomObjectState();
+        stateObj.id = obj.id;
+        stateObj.objectType = obj.objectType;
+        stateObj.internalId = obj.internalId;
+
+        this.state.objects.set(obj.id, stateObj);
+      } catch (error) {
+        console.error("[Room.onMessage:addObject]", error);
+        client.send("error", { message: "Failed to add object" });
+      }
     });
   }
 
   async onJoin(client: Client, options: any) {
-    const { userId } = verifyToken(options.token);
-
-    const membership = await prisma.roomMember.findUnique({
-      where: {
-        roomId_userId: {
-          roomId: this.dbRoomId,
-          userId
-        }
+    try {
+      if (!options.token) {
+        throw new Error("Authentication token required");
       }
-    });
 
-    if (!membership) {
-      throw new Error("Not a member of this room");
+      const { userId } = verifyToken(options.token);
+
+      const membership = await prisma.roomMember.findUnique({
+        where: {
+          roomId_userId: {
+            roomId: this.dbRoomId,
+            userId
+          }
+        }
+      });
+
+      if (!membership) {
+        throw new Error("Not a member of this room");
+      }
+
+      const room = await prisma.room.findUnique({
+        where: { id: this.dbRoomId }
+      });
+
+      if (this.clients.length >= (room?.maxCapacity || 25)) {
+        throw new Error("Room full");
+      }
+
+      const player = new Player();
+      player.id = userId;
+      player.role = membership.role;
+
+      this.state.players.set(client.sessionId, player);
+
+      
+      const history = await prisma.chatMessage.findMany({
+        where: { roomId: this.dbRoomId },
+        orderBy: { createdAt: "desc" },
+        take: 20
+      });
+
+      history.reverse().forEach((msg) => {
+        const message = new Message();
+        message.userId = msg.userId || "system";
+        message.content = msg.content;
+        this.state.messages.push(message);
+      });
+    } catch (error: any) {
+      console.error("[Room.onJoin]", error.message);
+      throw error;
     }
-
-    const room = await prisma.room.findUnique({
-      where: { id: this.dbRoomId }
-    });
-
-    if (this.clients.length >= (room?.maxCapacity || 25)) {
-      throw new Error("Room full");
-    }
-
-    const player = new Player();
-    player.id = userId;
-    player.role = membership.role;
-
-    this.state.players.set(client.sessionId, player);
-
-    // Load last 20 chat messages
-    const history = await prisma.chatMessage.findMany({
-      where: { roomId: this.dbRoomId },
-      orderBy: { createdAt: "desc" },
-      take: 20
-    });
-
-    history.reverse().forEach((msg) => {
-      const message = new Message();
-      message.userId = msg.userId || "system";
-      message.content = msg.content;
-
-      this.state.messages.push(message);
-    });
   }
 
   onLeave(client: Client) {
