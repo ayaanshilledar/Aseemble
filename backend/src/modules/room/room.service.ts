@@ -28,3 +28,16 @@ export const createRoom = async ({ name, ownerId }: { name: string; ownerId: str
         return room;
     });
 };
+
+export const deleteRoom = async ({ name, ownerId }: { name: string; ownerId: string }) => {
+    const room = await prisma.room.findUnique({ where: { id: name } });
+    if (!room) {
+        throw new AppError("Room not found", 404);
+    }
+    if (room.ownerId !== ownerId) {
+        throw new AppError("You are not the owner of this room", 403);
+    }
+    await prisma.room.delete({ where: { id: room.id } });
+    return { message: "Room deleted successfully" };
+};
+

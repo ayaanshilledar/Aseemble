@@ -11,7 +11,7 @@ export const register = async ({ username, email, password }: any) => {
       data: {
         username,
         email,
-        password: hash
+        passwordHash: hash
       }
     });
   } catch (error: any) {
@@ -28,7 +28,7 @@ export const login = async ({ email, password }: any) => {
     throw new AppError("Invalid email or password", 401);
   }
 
-  const valid = await bcrypt.compare(password, user.password);
+  const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     throw new AppError("Invalid email or password", 401);
   }

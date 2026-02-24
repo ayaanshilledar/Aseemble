@@ -6,3 +6,10 @@ export const createRoomSchema = z.object({
         ownerId: z.string().uuid(),
     }),
 });
+
+export const deleteRoomSchema = z.object({
+    body: z.object({
+        name: z.string(),
+        ownerId: z.string().uuid(),
+    }),
+});
