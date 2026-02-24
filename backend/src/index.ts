@@ -25,7 +25,7 @@ const gameServer = new Server({
 
 // unique room id
 gameServer
-  .define("game", GameRoom)
+  .define("room", GameRoom)
   .filterBy(["roomId"]);
 
 server.listen(4000, () => {
