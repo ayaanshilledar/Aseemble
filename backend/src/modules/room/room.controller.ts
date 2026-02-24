@@ -1,8 +1,9 @@
 import { Request, Response } from "express";
 import { createRoom } from "./room.service";
+import { catchAsync } from "../../utils/catchAsync";
+import { successResponse } from "../../utils/response";
 
-export const createRoomController = async(req: Request, res: Response)=>{
+export const createRoomController = catchAsync(async (req: Request, res: Response) => {
     const room = await createRoom(req.body);
-    res.json(room);
-};
-
+    return successResponse(res, room, "Room created successfully", 201);
+});

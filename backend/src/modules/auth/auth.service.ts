@@ -1,23 +1,46 @@
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
 import { prisma } from "../../config/prisma";
+import { AppError } from "../../utils/AppError";
+import { signToken } from "../../utils/jwt";
 
 export const register = async ({ username, email, password }: any) => {
   const hash = await bcrypt.hash(password, 10);
 
-  return prisma.user.create({
-    data: { username, email, password: hash }
-  });
+  try {
+    return await prisma.user.create({
+      data: {
+        username,
+        email,
+        password: hash
+      }
+    });
+  } catch (error: any) {
+    if (error.code === "P2002") {
+      throw new AppError("Email or username already exists", 400);
+    }
+    throw error;
+  }
 };
 
 export const login = async ({ email, password }: any) => {
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) throw new Error("User not found");
+  if (!user) {
+    throw new AppError("Invalid email or password", 401);
+  }
 
   const valid = await bcrypt.compare(password, user.password);
-  if (!valid) throw new Error("Invalid password");
+  if (!valid) {
+    throw new AppError("Invalid email or password", 401);
+  }
 
-  const token = jwt.sign({ userId: user.id }, "secret");
+  const token = signToken({ userId: user.id });
 
-  return { token, userId: user.id };
+  return {
+    token,
+    user: {
+      id: user.id,
+      username: user.username,
+      email: user.email
+    }
+  };
 };
