@@ -41,3 +41,12 @@ export const deleteRoom = async ({ name, ownerId }: { name: string; ownerId: str
     return { message: "Room deleted successfully" };
 };
 
+
+export const getRoom = async ({ id }: { id: string }) => {
+    const room = await prisma.room.findUnique({ where: { id } });
+    if (!room) {
+        throw new AppError("Room not found", 404);
+    }
+    return room;
+};
+

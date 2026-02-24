@@ -13,3 +13,9 @@ export const deleteRoomSchema = z.object({
         ownerId: z.string().uuid(),
     }),
 });
+
+export const getRoomSchema = z.object({
+    params: z.object({
+        id: z.string().uuid(),
+    }),
+});
