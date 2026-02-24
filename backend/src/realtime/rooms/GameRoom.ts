@@ -130,6 +130,45 @@ export class GameRoom extends Room<{ state: GameState }> {
       }
     });
 
+    // --- Meeting Handlers ---
+
+    // Toggle Mic State
+    this.onMessage("toggleMic", (client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (player) player.isMuted = !player.isMuted;
+    });
+
+    // Toggle Camera State
+    this.onMessage("toggleCamera", (client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (player) player.isCameraOff = !player.isCameraOff;
+    });
+
+    // Raise/Lower Hand
+    this.onMessage("toggleHand", (client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (player) player.isHandRaised = !player.isHandRaised;
+    });
+
+    // --- Host Controls (Owner/Admin only) ---
+
+    // Lock/Unlock Room
+    this.onMessage("toggleLock", (client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (player?.role === "owner" || player?.role === "admin") {
+        this.state.isLocked = !this.state.isLocked;
+      }
+    });
+
+    // Kick Participant
+    this.onMessage("kickPlayer", (client, targetSessionId: string) => {
+      const host = this.state.players.get(client.sessionId);
+      if (host?.role === "owner" || host?.role === "admin") {
+        const targetClient = this.clients.find(c => c.sessionId === targetSessionId);
+        if (targetClient) targetClient.leave();
+      }
+    });
+
     // --- WebRTC Signaling Handlers ---
 
     // 1️⃣ Get Router RTP Capabilities
@@ -245,6 +284,10 @@ export class GameRoom extends Room<{ state: GameState }> {
 
       if (this.clients.length >= (room?.maxCapacity || 25)) {
         throw new Error("Room full");
+      }
+
+      if (this.state.isLocked) {
+        throw new Error("Room is locked by host");
       }
 
       const player = new Player();

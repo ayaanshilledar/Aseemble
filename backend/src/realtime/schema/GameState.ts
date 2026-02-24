@@ -11,6 +11,9 @@ export class GameState extends Schema {
   @type("number")
   maxCapacity: number = 25;
 
+  @type("boolean")
+  isLocked: boolean = false;
+
   @type({ map: Player })
   players = new MapSchema<Player>();
 
