@@ -26,3 +26,10 @@ export const joinRoomSchema = z.object({
         userId: z.string(),
     }),
 });
+
+export const leaveRoomSchema = z.object({
+    body: z.object({
+        roomId: z.string(),
+        userId: z.string(),
+    }),
+});

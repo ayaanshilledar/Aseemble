@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { createRoom, deleteRoom, getRoom, JoinRoom } from "./room.service";
+import { createRoom, deleteRoom, getRoom, JoinRoom, leaveRoom } from "./room.service";
 import { catchAsync } from "../../utils/catchAsync";
 import { successResponse } from "../../utils/response";
 
@@ -21,4 +21,9 @@ export const getRoomController = catchAsync(async (req: Request, res: Response) 
 export const joinRoomController = catchAsync(async (req: Request, res: Response) => {
     const room = await JoinRoom(req.body);
     return successResponse(res, room, "Room joined successfully", 200);
+});
+
+export const leaveRoomController = catchAsync(async (req: Request, res: Response) => {
+    const room = await leaveRoom(req.body);
+    return successResponse(res, room, "Room left successfully", 200);
 });
