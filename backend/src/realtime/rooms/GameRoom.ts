@@ -5,10 +5,13 @@ import { Message } from "../schema/Message";
 import { RoomObjectState } from "../schema/RoomObjectState";
 import { prisma } from "../../config/prisma";
 import { verifyToken } from "../../utils/jwt";
+import { RoomMedia } from "../../media/roomMedia";
 
 export class GameRoom extends Room<{ state: GameState }> {
 
   private dbRoomId!: string;
+  private media!: RoomMedia;
+
 
   async onCreate(options: any) {
     try {
@@ -21,9 +24,8 @@ export class GameRoom extends Room<{ state: GameState }> {
         where: { id: this.dbRoomId }
       });
 
-      if (!room || !room.isActive) {
-        throw new Error("Room not found or inactive");
-      }
+      this.media = new RoomMedia(this.dbRoomId);
+      await this.media.init();
 
       this.setState(new GameState());
 
@@ -86,7 +88,7 @@ export class GameRoom extends Room<{ state: GameState }> {
 
         this.state.messages.push(message);
 
-       
+
         if (this.state.messages.length > 50) {
           this.state.messages.shift();
         }
@@ -127,6 +129,93 @@ export class GameRoom extends Room<{ state: GameState }> {
         client.send("error", { message: "Failed to add object" });
       }
     });
+
+    // --- WebRTC Signaling Handlers ---
+
+    // 1️⃣ Get Router RTP Capabilities
+    this.onMessage("getRtpCapabilities", (client: Client, _) => {
+      return this.media.getRtpCapabilities();
+    });
+
+    // 2️⃣ Create Transport
+    this.onMessage("createTransport", async (client: Client, _) => {
+      try {
+        const peer = this.media.getPeer(client.sessionId);
+        const transport = await this.media.createWebRtcTransport();
+        peer?.addTransport(transport);
+
+        return {
+          id: transport.id,
+          iceParameters: transport.iceParameters,
+          iceCandidates: transport.iceCandidates,
+          dtlsParameters: transport.dtlsParameters
+        };
+      } catch (error) {
+        console.error("[Room.onMessage:createTransport]", error);
+        return { error: "Failed to create transport" };
+      }
+    });
+
+    // 3️⃣ Produce (Send media)
+    this.onMessage("produce", async (client: Client, data: any) => {
+      try {
+        const peer = this.media.getPeer(client.sessionId);
+        const transport = peer?.getTransport(data.transportId);
+
+        if (!transport) {
+          return { error: "Transport not found" };
+        }
+
+        const producer = await transport.produce({
+          kind: data.kind,
+          rtpParameters: data.rtpParameters
+        });
+
+        peer?.addProducer(producer);
+
+        return { id: producer.id };
+      } catch (error) {
+        console.error("[Room.onMessage:produce]", error);
+        return { error: "Failed to produce media" };
+      }
+    });
+
+    // 4️⃣ Consume (Receive media)
+    this.onMessage("consume", async (client: Client, data: any) => {
+      try {
+        if (!this.media.router.canConsume({
+          producerId: data.producerId,
+          rtpCapabilities: data.rtpCapabilities
+        })) {
+          return { error: "Cannot consume" };
+        }
+
+        const peer = this.media.getPeer(client.sessionId);
+        const transport = peer?.getTransport(data.transportId);
+
+        if (!transport) {
+          return { error: "Transport not found" };
+        }
+
+        const consumer = await transport.consume({
+          producerId: data.producerId,
+          rtpCapabilities: data.rtpCapabilities,
+          paused: false
+        });
+
+        peer?.addConsumer(consumer);
+
+        return {
+          id: consumer.id,
+          producerId: data.producerId,
+          kind: consumer.kind,
+          rtpParameters: consumer.rtpParameters
+        };
+      } catch (error) {
+        console.error("[Room.onMessage:consume]", error);
+        return { error: "Failed to consume media" };
+      }
+    });
   }
 
   async onJoin(client: Client, options: any) {
@@ -162,9 +251,10 @@ export class GameRoom extends Room<{ state: GameState }> {
       player.id = userId;
       player.role = membership.role;
 
+      this.media.addPeer(client.sessionId);
       this.state.players.set(client.sessionId, player);
 
-      
+
       const history = await prisma.chatMessage.findMany({
         where: { roomId: this.dbRoomId },
         orderBy: { createdAt: "desc" },
@@ -183,7 +273,10 @@ export class GameRoom extends Room<{ state: GameState }> {
     }
   }
 
+
   onLeave(client: Client) {
+    this.media.removePeer(client.sessionId);
     this.state.players.delete(client.sessionId);
   }
+
 }

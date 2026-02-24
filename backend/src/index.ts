@@ -8,6 +8,7 @@ import authRoutes from "./modules/auth/auth.routes";
 import roomRoutes from "./modules/room/room.route";
 import { GameRoom } from "./realtime/rooms/GameRoom";
 import { errorMiddleware } from "./middleware/error.middleware";
+import { initMediasoupWorker } from "./media/worker";
 
 dotenv.config({ quiet: true });
 
@@ -31,6 +32,8 @@ gameServer
 
 app.use(errorMiddleware);
 
-server.listen(4000, () => {
+server.listen(4000, async () => {
+  await initMediasoupWorker();
   console.log("Server running on http://localhost:4000");
 });
+

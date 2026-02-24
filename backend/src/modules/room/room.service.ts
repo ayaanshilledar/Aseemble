@@ -85,6 +85,6 @@ export const leaveRoom = async({roomId, userId}:{roomId:string, userId:string})=
             }
         }
      })
-        return room;
+    return room;
    
 }
