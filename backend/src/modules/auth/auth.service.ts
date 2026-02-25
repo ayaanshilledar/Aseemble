@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import { prisma } from "../../config/prisma";
 import { AppError } from "../../utils/AppError";
 import { signToken } from "../../utils/jwt";
-
+// refreshtoken missing
 export const register = async ({ username, email, password }: any) => {
   const hash = await bcrypt.hash(password, 10);
 
@@ -44,3 +44,16 @@ export const login = async ({ email, password }: any) => {
     }
   };
 };
+export const logout = async ({userId}:{userId:string})=>{
+   const user = await prisma.user.findUnique({where:{id:userId}})
+   if(!user){
+    throw new AppError("User not found", 404);
+   }
+   await prisma.user.update({
+    where:{id:userId},
+    data:{
+         id: userId
+    }
+   })
+   return user;
+}

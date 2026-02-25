@@ -14,3 +14,9 @@ export const loginSchema = z.object({
         password: z.string(),
     }),
 });
+
+export const logoutSchema = z.object({
+    body: z.object({
+        userId: z.string(),
+    }),
+});

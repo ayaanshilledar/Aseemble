@@ -12,3 +12,8 @@ export const login = catchAsync(async (req: Request, res: Response) => {
   const data = await authService.login(req.body);
   return successResponse(res, data, "Login successful");
 });
+
+export const logout = catchAsync(async (req: Request, res: Response) => {
+  const user = await authService.logout(req.body);
+  return successResponse(res, user, "Logout successful");
+});

@@ -1,5 +1,3 @@
-//TODO: update room
-
 import { prisma } from "../../config/prisma";
 import { AppError } from "../../utils/AppError";
 
@@ -52,7 +50,7 @@ export const getRoom = async ({ id }: { id: string }) => {
     return room;
 };
 
-//TODO: join room data need to have Host name for now
+
 export const JoinRoom = async ({roomId, userId}:{roomId:string, userId:string})=>{
     const room =  await prisma.room.findUnique({
         where:{
